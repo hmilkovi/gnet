@@ -37,16 +37,17 @@ func (ec *eventConsumer) Consume(lower, upper int64) {
 		c := connRingBuffer[lower&RingBufferMask]
 		c.inBuf = ringbuffer.New(RingBufferSize)
 		c.outBuf = ringbuffer.New(RingBufferSize)
-		fmt.Printf("lower: %d, consuming fd: %d in poll: %d\n", lower, c.fd, ec.l.poll.GetFD())
+		fmt.Printf("lower: %d, consuming fd: %d in loop: %d\n", lower, c.fd, ec.l.idx)
 		c.loop = ec.l
 		// Connections load balance under round-robin algorithm.
 		if ec.s.numLoops > 1 {
 			idx := int(lower) % ec.s.numLoops
 			if idx != ec.l.idx {
-				return // Don't match, ignore this connection.
+				fmt.Printf("lower: %d, ignoring fd: %d in loop: %d\n", lower, c.fd, ec.l.idx)
+				continue // Don't match, ignore this connection.
 			}
 		}
-		fmt.Printf("send fd: %d to epoll: %d\n", c.fd, ec.l.poll.GetFD())
+		fmt.Printf("lower: %d, send fd: %d to loop: %d\n", lower, c.fd, ec.l.idx)
 		_ = ec.l.poll.Trigger(&signal{fd: c.fd, c: c})
 	}
 }
@@ -121,7 +122,7 @@ func activateSubReactor(s *server, l *loop) {
 	fmt.Printf("sub reactor polling, loop: %d\n", l.idx)
 	_ = l.poll.Polling(func(fd int, note interface{}) error {
 		if fd == 0 {
-			fmt.Printf("loopnote %v\n", note)
+			fmt.Printf("sub reactor: %d, loopnote %v\n", l.idx, note)
 			return loopNote(s, l, note)
 		}
 
