@@ -6,8 +6,6 @@
 package internal
 
 import (
-	"fmt"
-
 	"golang.org/x/sys/unix"
 )
 
@@ -65,13 +63,11 @@ func (p *Poll) Polling(iter func(fd int, note interface{}) error) error {
 		if err != nil && err != unix.EINTR {
 			return err
 		}
-		fmt.Printf("poll: %d receives events...\n", p.fd)
 		if err := p.notes.ForEach(func(note interface{}) error {
 			return iter(0, note)
 		}); err != nil {
 			return err
 		}
-		fmt.Printf("notes pass\n")
 		for i := 0; i < n; i++ {
 			if fd := int(events[i].Fd); fd != p.wfd {
 				if err := iter(fd, nil); err != nil {
