@@ -61,11 +61,6 @@ func activateMainReactor(s *server) {
 		s.wg.Done()
 	}()
 
-	if s.events.Tick != nil {
-		fmt.Println("start ticker...")
-		go loopTicker(s, s.mainLoop)
-	}
-
 	eventConsumers := make([]disruptor.Consumer, 0, s.numLoops)
 	for _, l := range s.loops {
 		ec := &eventConsumer{s, l}
@@ -108,7 +103,6 @@ func activateMainReactor(s *server) {
 				sequence = writer.Reserve(1)
 				connRingBuffer[sequence&RingBufferMask] = c
 				writer.Commit(sequence, sequence)
-				//fmt.Printf("connections ringbuffer: %v\n", connRingBuffer)
 				return nil
 			}
 		}
@@ -122,29 +116,29 @@ func activateSubReactor(s *server, l *loop) {
 		s.wg.Done()
 	}()
 
+	if l.idx == 0 && s.events.Tick != nil {
+		fmt.Println("start ticker...")
+		go loopTicker(s, l)
+	}
+
 	fmt.Printf("sub reactor polling, loop: %d\n", l.idx)
 	_ = l.poll.Polling(func(fd int, note interface{}) error {
 		if fd == 0 {
-			fmt.Printf("sub reactor: %d, loopnote %v\n", l.idx, note)
 			return loopNote(s, l, note)
 		}
 
-		//fmt.Printf("get event: %d\n", fd)
 		c := l.fdconns[fd]
 		if c == nil {
 			fmt.Printf("c: %d not in loop: %d\n", fd, l.idx)
 		}
 		switch {
 		case !c.opened:
-			//fmt.Println("opened")
 			return loopOpened(s, l, c)
 		case c.outBuf.Length() > 0:
-			//fmt.Println("write")
 			return loopWrite(s, l, c)
 		case c.action != None:
 			return loopAction(s, l, c)
 		default:
-			//fmt.Println("read")
 			return loopRead(s, l, c)
 		}
 	})

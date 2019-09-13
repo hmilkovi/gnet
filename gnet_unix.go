@@ -8,7 +8,6 @@
 package gnet
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -157,7 +156,6 @@ func activateReactors(s *server, numLoops int) {
 		idx:  -1,
 		poll: internal.OpenPoll(),
 	}
-	fmt.Printf("main reactor epoll: %d\n", l.poll.GetFD())
 	for _, ln := range s.lns {
 		l.poll.AddRead(ln.fd)
 	}
