@@ -16,10 +16,6 @@ type Poll struct {
 	notes   noteQueue
 }
 
-func (p *Poll) GetFD() int {
-	return p.fd
-}
-
 // OpenPoll ...
 func OpenPoll() *Poll {
 	l := new(Poll)

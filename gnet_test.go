@@ -62,9 +62,9 @@ func testServe(network, addr string, unix bool, nclients, nloops int) {
 
 	var events Events
 	events.NumLoops = nloops
-	events.OnInitComplete = func(srv Server) (action Action) {
-		return
-	}
+	//events.OnInitComplete = func(srv Server) (action Action) {
+	//	return
+	//}
 	events.OnOpened = func(c Conn) (out []byte, opts Options, action Action) {
 		c.SetContext(c)
 		atomic.AddInt32(&connected, 1)

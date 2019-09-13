@@ -138,6 +138,20 @@ func activateReactors(s *server, numLoops int) {
 		numLoops = 2
 	}
 	s.wg.Add(numLoops)
+	for i := 0; i < numLoops-1; i++ {
+		l := &loop{
+			idx:     i,
+			poll:    internal.OpenPoll(),
+			packet:  make([]byte, 0xFFFF),
+			fdconns: make(map[int]*conn),
+		}
+		s.loops = append(s.loops, l)
+	}
+	s.numLoops = len(s.loops)
+	// start sub reactors...
+	for _, l := range s.loops {
+		go activateSubReactor(s, l)
+	}
 
 	l := &loop{
 		idx:  -1,
@@ -150,22 +164,6 @@ func activateReactors(s *server, numLoops int) {
 	s.mainLoop = l
 	// start main reactor...
 	go activateMainReactor(s)
-
-	for i := 0; i < numLoops-1; i++ {
-		l := &loop{
-			idx:     i,
-			poll:    internal.OpenPoll(),
-			packet:  make([]byte, 0xFFFF),
-			fdconns: make(map[int]*conn),
-		}
-		fmt.Printf("sub reactor: %d epoll: %d\n", i, l.poll.GetFD())
-		s.loops = append(s.loops, l)
-	}
-	s.numLoops = len(s.loops)
-	// start sub reactors...
-	for _, l := range s.loops {
-		go activateSubReactor(s, l)
-	}
 }
 
 func (ln *listener) close() {

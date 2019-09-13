@@ -39,12 +39,14 @@ func (ec *eventConsumer) Consume(lower, upper int64) {
 		c.outBuf = ringbuffer.New(RingBufferSize)
 		fmt.Printf("lower: %d, consuming fd: %d in loop: %d\n", lower, c.fd, ec.l.idx)
 		c.loop = ec.l
+
 		// Connections load balance under round-robin algorithm.
 		if ec.s.numLoops > 1 {
 			idx := int(lower) % ec.s.numLoops
 			if idx != ec.l.idx {
 				fmt.Printf("lower: %d, ignoring fd: %d in loop: %d\n", lower, c.fd, ec.l.idx)
-				continue // Don't match, ignore this connection.
+				// Don't match the round-robin rule, ignore this connection.
+				continue
 			}
 		}
 		fmt.Printf("lower: %d, send fd: %d to loop: %d\n", lower, c.fd, ec.l.idx)
@@ -69,6 +71,7 @@ func activateMainReactor(s *server) {
 		ec := &eventConsumer{s, l}
 		eventConsumers = append(eventConsumers, ec)
 	}
+	fmt.Printf("length of loops: %d and consumers: %d\n", s.numLoops, len(eventConsumers))
 
 	// Initialize go-disruptor with ring-buffer for dispatching events to loops.
 	controller := disruptor.Configure(RingBufferSize).WithConsumerGroup(eventConsumers...).Build()
@@ -129,7 +132,7 @@ func activateSubReactor(s *server, l *loop) {
 		//fmt.Printf("get event: %d\n", fd)
 		c := l.fdconns[fd]
 		if c == nil {
-			fmt.Printf("c: %d not in loop: %d, pool: %d\n", fd, l.idx, l.poll.GetFD())
+			fmt.Printf("c: %d not in loop: %d\n", fd, l.idx)
 		}
 		switch {
 		case !c.opened:

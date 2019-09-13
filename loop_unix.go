@@ -75,9 +75,9 @@ func loopNote(s *server, l *loop, note interface{}) error {
 		}
 		return loopWake(s, l, v)
 	case *signal:
-		fmt.Printf("trigger poll: %d with c: %d\n", l.poll.GetFD(), v.fd)
-		l.poll.AddReadWrite(v.fd)
+		fmt.Printf("trigger loop: %d with c: %d\n", l.idx, v.fd)
 		l.fdconns[v.fd] = v.c
+		l.poll.AddReadWrite(v.fd)
 	}
 	return err
 }
