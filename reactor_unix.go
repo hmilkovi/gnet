@@ -19,22 +19,21 @@ const (
 	DisruptorCleanup = time.Millisecond * 10
 )
 
-var connRingBuffer = [RingBufferSize]*conn{}
-
 type signal struct {
 	fd int
 	c  *conn
 }
 
 type eventConsumer struct {
-	s *server
-	l *loop
+	s  *server
+	l  *loop
+	rb *[RingBufferSize]*conn
 }
 
 func (ec *eventConsumer) Consume(lower, upper int64) {
 	fmt.Printf("consumer with loop: %d, consuming message, lower: %d, upper: %d\n", ec.l.idx, lower, upper)
 	for ; lower <= upper; lower++ {
-		c := connRingBuffer[lower&RingBufferMask]
+		c := ec.rb[lower&RingBufferMask]
 		c.inBuf = ringbuffer.New(RingBufferSize)
 		c.outBuf = ringbuffer.New(RingBufferSize)
 		fmt.Printf("lower: %d, consuming fd: %d in loop: %d\n", lower, c.fd, ec.l.idx)
@@ -49,7 +48,7 @@ func (ec *eventConsumer) Consume(lower, upper int64) {
 				continue
 			}
 		}
-		fmt.Printf("lower: %d, send fd: %d to loop: %d\n", lower, c.fd, ec.l.idx)
+		fmt.Printf("lower: %d, sendOut fd: %d to loop: %d\n", lower, c.fd, ec.l.idx)
 		_ = ec.l.poll.Trigger(&signal{fd: c.fd, c: c})
 	}
 }
@@ -61,9 +60,11 @@ func activateMainReactor(s *server) {
 		s.wg.Done()
 	}()
 
+	var connRingBuffer = &[RingBufferSize]*conn{}
+
 	eventConsumers := make([]disruptor.Consumer, 0, s.numLoops)
 	for _, l := range s.loops {
-		ec := &eventConsumer{s, l}
+		ec := &eventConsumer{s, l, connRingBuffer}
 		eventConsumers = append(eventConsumers, ec)
 	}
 	fmt.Printf("length of loops: %d and consumers: %d\n", s.numLoops, len(eventConsumers))
@@ -127,19 +128,19 @@ func activateSubReactor(s *server, l *loop) {
 			return loopNote(s, l, note)
 		}
 
-		c := l.fdconns[fd]
-		if c == nil {
-			fmt.Printf("c: %d not in loop: %d\n", fd, l.idx)
+		if c, ok := l.fdconns[fd]; ok {
+			switch {
+			case !c.opened:
+				return loopOpened(s, l, c)
+			case c.outBuf.Length() > 0:
+				return loopWrite(s, l, c)
+			case c.action != None:
+				return loopAction(s, l, c)
+			default:
+				return loopRead(s, l, c)
+			}
 		}
-		switch {
-		case !c.opened:
-			return loopOpened(s, l, c)
-		case c.outBuf.Length() > 0:
-			return loopWrite(s, l, c)
-		case c.action != None:
-			return loopAction(s, l, c)
-		default:
-			return loopRead(s, l, c)
-		}
+		fmt.Printf("c: %d not in loop: %d\n", fd, l.idx)
+		return nil
 	})
 }

@@ -8,6 +8,7 @@ package gnet
 import (
 	"io"
 	"net"
+	"syscall"
 
 	"github.com/panjf2000/gnet/ringbuffer"
 	"golang.org/x/sys/unix"
@@ -26,6 +27,23 @@ type conn struct {
 	localAddr  net.Addr      // local addre
 	remoteAddr net.Addr      // remote addr
 	loop       *loop         // connected loop
+}
+
+func (c *conn) sendOut(buf []byte) {
+	if c.outBuf.Length() > 0 {
+		_, _ = c.outBuf.Write(buf)
+		return
+	}
+
+	n, err := syscall.Write(c.fd, buf)
+	if err != nil {
+		_, _ = c.outBuf.Write(buf)
+		return
+	}
+
+	if n < len(buf) {
+		_, _ = c.outBuf.Write(buf[n:])
+	}
 }
 
 func (c *conn) Context() interface{}       { return c.ctx }

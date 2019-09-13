@@ -240,7 +240,9 @@ func testShutdown(network, addr string) {
 				}()
 			}
 		} else {
+			fmt.Printf("ticker clients: %d\n", atomic.LoadInt64(&clients))
 			if int(atomic.LoadInt64(&clients)) == N {
+				fmt.Printf("ticker shutdown...\n")
 				action = Shutdown
 			}
 		}

@@ -75,9 +75,9 @@ func loopNote(s *server, l *loop, note interface{}) error {
 		}
 		return loopWake(s, l, v)
 	case *signal:
-		fmt.Printf("trigger loop: %d with c: %d\n", l.idx, v.fd)
 		l.fdconns[v.fd] = v.c
 		l.poll.AddReadWrite(v.fd)
+		fmt.Printf("trigger loop: %d with c: %d\n", l.idx, v.fd)
 	}
 	return err
 }
@@ -203,16 +203,19 @@ func loopOpened(s *server, l *loop, c *conn) error {
 	if s.events.OnOpened != nil {
 		out, opts, action := s.events.OnOpened(c)
 		c.action = action
-		if len(out) > 0 {
-			_, _ = c.outBuf.Write(out)
-		}
 		if opts.TCPKeepAlive > 0 {
 			if _, ok := s.lns[c.lnidx].ln.(*net.TCPListener); ok {
 				sniffError(internal.SetKeepAlive(c.fd, int(opts.TCPKeepAlive/time.Second)))
 			}
 		}
+
+		if len(out) > 0 {
+			fmt.Printf("c: %d, out length: %d in opened\n", c.fd, len(out))
+			//_, _ = c.outBuf.Write(out)
+			c.sendOut(out)
+		}
 	}
-	//fmt.Printf("outBuf length: %d in opened\n", c.outBuf.Length())
+	fmt.Printf("c: %d, outBuf length: %d in opened\n", c.fd, c.outBuf.Length())
 	if c.outBuf.Length() == 0 && c.action == None {
 		l.poll.ModRead(c.fd)
 	}
@@ -265,7 +268,8 @@ func loopWake(s *server, l *loop, c *conn) error {
 	out, action := s.events.React(c, c.inBuf)
 	c.action = action
 	if len(out) > 0 {
-		_, _ = c.outBuf.Write(out)
+		//_, _ = c.outBuf.Write(out)
+		c.sendOut(out)
 	}
 	if c.outBuf.Length() != 0 || c.action != None {
 		l.poll.ModReadWrite(c.fd)
@@ -288,7 +292,8 @@ func loopRead(s *server, l *loop, c *conn) error {
 		out, action := s.events.React(c, c.inBuf)
 		c.action = action
 		if len(out) > 0 {
-			_, _ = c.outBuf.Write(out)
+			//_, _ = c.outBuf.Write(out)
+			c.sendOut(out)
 		}
 	}
 	//fmt.Printf("c: %d, outBuf length %d in read", c.fd, c.outBuf.Length())
